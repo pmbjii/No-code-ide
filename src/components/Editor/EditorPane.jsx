@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { useApp } from '../../contexts/AppContext';
 import { X, FileText, Code, FileImage, Settings } from 'lucide-react';
+import WelcomeScreen from '../Welcome/WelcomeScreen';
 
 const EditorPane = () => {
   const { state, closeFile, setActiveFile, updateFileContent } = useApp();
@@ -136,15 +137,7 @@ const EditorPane = () => {
   };
 
   if (state.openFiles.length === 0) {
-    return (
-      <div className="h-full flex items-center justify-center bg-editor-bg">
-        <div className="text-center text-text-secondary">
-          <FileText className="w-16 h-16 mx-auto mb-4 opacity-50" />
-          <h3 className="text-lg font-medium mb-2">No files open</h3>
-          <p className="text-sm">Open a file from the explorer to start editing</p>
-        </div>
-      </div>
-    );
+    return <WelcomeScreen />;
   }
 
   return (
