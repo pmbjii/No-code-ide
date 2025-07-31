@@ -28,7 +28,6 @@
     "uuid": "^9.0.1",
     "marked": "^9.1.6",
     "prismjs": "^1.29.0",
-    "react-split-pane": "^0.1.92",
     "react-hotkeys-hook": "^4.4.1",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
@@ -47,5 +46,11 @@
   },
   "keywords": ["ai", "code-editor", "cursor", "ide", "react", "monaco"],
   "author": "AI Assistant",
-  "license": "MIT"
+  "license": "MIT",
+  "overrides": {
+    "react-split-pane": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
+  }
 }

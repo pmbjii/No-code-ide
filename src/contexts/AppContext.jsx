@@ -33,7 +33,7 @@ const initialState = {
   
   // Project
   projectPath: '',
-  projectName: 'Untitled Project',
+  projectName: 'Cursor AI Clone',
   
   // Plugins
   installedPlugins: [],
@@ -122,6 +122,12 @@ const appReducer = (state, action) => {
       return {
         ...state,
         terminalHistory: [...state.terminalHistory, action.payload]
+      };
+
+    case 'CLEAR_TERMINAL':
+      return {
+        ...state,
+        terminalHistory: []
       };
     
     case 'SET_PROJECT':
