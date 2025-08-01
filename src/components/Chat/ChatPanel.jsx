@@ -137,21 +137,44 @@ const ChatPanel = () => {
   };
 
   const handleAgentRequest = async (input, options) => {
-    // Determine which agent to use based on input
-    if (input.toLowerCase().includes('analyze') || input.toLowerCase().includes('review')) {
-      const activeFile = state.openFiles.find(f => f.id === state.activeFileId);
-      if (activeFile) {
-        return await aiService.analyzeCode(activeFile.content, activeFile.language, options);
-      }
+    const activeFile = state.openFiles.find(f => f.id === state.activeFileId);
+    if (!activeFile) {
+      return await aiService.generateResponse(input, { ...options, capability: 'chat' });
+    }
+
+    // Determine which workflow to use based on input
+    const inputLower = input.toLowerCase();
+    
+    if (inputLower.includes('analyze') || inputLower.includes('review') || inputLower.includes('check')) {
+      return await aiService.runWorkflow('code-review', activeFile.content, {
+        language: activeFile.language,
+        context: `File: ${activeFile.name}`,
+        ...options
+      });
     }
     
-    if (input.toLowerCase().includes('improve') || input.toLowerCase().includes('fix')) {
-      const activeFile = state.openFiles.find(f => f.id === state.activeFileId);
-      if (activeFile) {
-        // First analyze, then improve
-        const analysis = await aiService.analyzeCode(activeFile.content, activeFile.language, options);
-        return await aiService.improveCode(activeFile.content, activeFile.language, analysis.results, options);
-      }
+    if (inputLower.includes('improve') || inputLower.includes('fix') || inputLower.includes('optimize')) {
+      return await aiService.runWorkflow('performance-optimization', activeFile.content, {
+        language: activeFile.language,
+        context: `File: ${activeFile.name}`,
+        ...options
+      });
+    }
+
+    if (inputLower.includes('document') || inputLower.includes('comment') || inputLower.includes('explain')) {
+      return await aiService.runWorkflow('documentation', activeFile.content, {
+        language: activeFile.language,
+        context: `File: ${activeFile.name}`,
+        ...options
+      });
+    }
+
+    if (inputLower.includes('quick') || inputLower.includes('fast')) {
+      return await aiService.runWorkflow('quick-analysis', activeFile.content, {
+        language: activeFile.language,
+        context: `File: ${activeFile.name}`,
+        ...options
+      });
     }
 
     // Default to regular chat

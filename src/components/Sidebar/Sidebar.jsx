@@ -3,7 +3,8 @@ import { useApp } from '../../contexts/AppContext';
 import FileExplorer from './FileExplorer';
 import SearchPanel from './SearchPanel';
 import ExtensionsPanel from './ExtensionsPanel';
-import { Files, Search, Package, GitBranch } from 'lucide-react';
+import AgentWorkflowPanel from '../AgentWorkflow/AgentWorkflowPanel';
+import { Files, Search, Package, GitBranch, Brain } from 'lucide-react';
 
 const Sidebar = () => {
   const [activeTab, setActiveTab] = useState('files');
@@ -11,6 +12,7 @@ const Sidebar = () => {
   const tabs = [
     { id: 'files', icon: Files, label: 'Explorer', component: FileExplorer },
     { id: 'search', icon: Search, label: 'Search', component: SearchPanel },
+    { id: 'agents', icon: Brain, label: 'Agent Workflows', component: AgentWorkflowPanel },
     { id: 'git', icon: GitBranch, label: 'Source Control', component: () => <div className="p-4 text-text-secondary">Git integration coming soon...</div> },
     { id: 'extensions', icon: Package, label: 'Extensions', component: ExtensionsPanel },
   ];

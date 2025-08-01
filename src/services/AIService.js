@@ -334,29 +334,41 @@ class AIService {
 
   // Agent-based code analysis and improvement
   async analyzeCode(code, language, options = {}) {
-    const analysisAgents = [
-      'syntax-analyzer',
-      'performance-analyzer', 
-      'security-analyzer',
-      'best-practices-analyzer'
-    ];
-
-    const results = await Promise.all(
-      analysisAgents.map(agent => 
-        this.agentManager.runAgent(agent, { code, language, ...options })
-      )
-    );
-
-    return this.agentManager.combineAnalysisResults(results);
+    // Use the new workflow system for comprehensive analysis
+    return await this.agentManager.runWorkflow('code-review', code, { 
+      language, 
+      ...options 
+    });
   }
 
   async improveCode(code, language, issues, options = {}) {
-    return await this.agentManager.runAgent('code-improver', {
-      code,
+    // Use performance optimization workflow for code improvement
+    return await this.agentManager.runWorkflow('performance-optimization', code, {
       language,
       issues,
       ...options
     });
+  }
+
+  // Workflow management methods
+  async runWorkflow(workflowId, input, options = {}) {
+    return await this.agentManager.runWorkflow(workflowId, input, options);
+  }
+
+  async runAgent(agentId, input, options = {}) {
+    return await this.agentManager.runAgent(agentId, input, options);
+  }
+
+  getAvailableWorkflows() {
+    return this.agentManager.getAvailableWorkflows();
+  }
+
+  getAvailableAgents() {
+    return this.agentManager.getAvailableAgents();
+  }
+
+  getExecutionHistory(executionId) {
+    return this.agentManager.getExecutionHistory(executionId);
   }
 
   // Self-evolving capabilities
@@ -529,83 +541,592 @@ class ErrorHandler {
 class AgentManager {
   constructor() {
     this.agents = new Map();
+    this.workflows = new Map();
+    this.executionHistory = new Map();
     this.initializeAgents();
+    this.initializeWorkflows();
   }
 
   initializeAgents() {
     // Syntax Analysis Agent
     this.agents.set('syntax-analyzer', {
-      systemPrompt: `You are a syntax analysis expert. Analyze code for syntax errors, 
-                    missing imports, and structural issues. Return findings in JSON format.`,
+      name: 'Syntax Analyzer',
+      description: 'Analyzes code for syntax errors, missing imports, and structural issues',
+      systemPrompt: `You are a syntax analysis expert. Analyze the provided code for:
+        1. Syntax errors and warnings
+        2. Missing imports and dependencies
+        3. Structural issues and code organization problems
+        4. Language-specific best practices violations
+        
+        Return your analysis in this JSON format:
+        {
+          "issues": [
+            {
+              "type": "error|warning|suggestion",
+              "severity": "high|medium|low",
+              "line": number,
+              "column": number,
+              "message": "description",
+              "suggestion": "how to fix"
+            }
+          ],
+          "summary": "Overall assessment",
+          "score": 0-100
+        }`,
       model: 'openai-gpt4',
-      temperature: 0.1
+      temperature: 0.1,
+      maxTokens: 2000
     });
 
     // Performance Analysis Agent
     this.agents.set('performance-analyzer', {
-      systemPrompt: `You are a performance optimization expert. Identify performance 
-                    bottlenecks, inefficient algorithms, and suggest optimizations.`,
+      name: 'Performance Analyzer',
+      description: 'Identifies performance bottlenecks and suggests optimizations',
+      systemPrompt: `You are a performance optimization expert. Analyze the code for:
+        1. Performance bottlenecks and inefficient algorithms
+        2. Memory usage issues and potential leaks
+        3. Time complexity problems
+        4. Optimization opportunities
+        
+        Return your analysis in this JSON format:
+        {
+          "bottlenecks": [
+            {
+              "type": "algorithm|memory|io|network",
+              "severity": "critical|high|medium|low",
+              "location": "function/method name",
+              "description": "issue description",
+              "impact": "performance impact",
+              "suggestion": "optimization strategy"
+            }
+          ],
+          "optimizations": [
+            {
+              "type": "algorithm|data_structure|caching|parallelization",
+              "description": "optimization description",
+              "expected_improvement": "estimated performance gain"
+            }
+          ],
+          "score": 0-100
+        }`,
       model: 'claude-3-opus',
-      temperature: 0.2
+      temperature: 0.2,
+      maxTokens: 2500
     });
 
     // Security Analysis Agent
     this.agents.set('security-analyzer', {
-      systemPrompt: `You are a security expert. Identify potential security vulnerabilities, 
-                    unsafe practices, and suggest security improvements.`,
+      name: 'Security Analyzer',
+      description: 'Identifies security vulnerabilities and unsafe practices',
+      systemPrompt: `You are a security expert. Analyze the code for:
+        1. Common security vulnerabilities (SQL injection, XSS, CSRF, etc.)
+        2. Unsafe practices and potential attack vectors
+        3. Input validation issues
+        4. Authentication and authorization problems
+        5. Data exposure risks
+        
+        Return your analysis in this JSON format:
+        {
+          "vulnerabilities": [
+            {
+              "type": "injection|xss|csrf|auth|data_exposure",
+              "severity": "critical|high|medium|low",
+              "location": "line/function",
+              "description": "vulnerability description",
+              "cve_reference": "if applicable",
+              "mitigation": "how to fix"
+            }
+          ],
+          "recommendations": [
+            {
+              "type": "input_validation|authentication|encryption|logging",
+              "description": "security recommendation",
+              "priority": "high|medium|low"
+            }
+          ],
+          "score": 0-100
+        }`,
       model: 'openai-gpt4',
-      temperature: 0.1
+      temperature: 0.1,
+      maxTokens: 2000
     });
 
     // Code Improvement Agent
     this.agents.set('code-improver', {
-      systemPrompt: `You are a code improvement specialist. Given code and identified issues, 
-                    provide improved versions that fix the issues while maintaining functionality.`,
+      name: 'Code Improver',
+      description: 'Provides improved code versions that fix identified issues',
+      systemPrompt: `You are a code improvement specialist. Given code and identified issues, provide:
+        1. Improved code versions that fix the issues
+        2. Alternative implementations with better practices
+        3. Refactoring suggestions
+        4. Code quality improvements
+        
+        Return your response in this JSON format:
+        {
+          "improvements": [
+            {
+              "type": "bug_fix|refactor|optimization|style",
+              "original_code": "original code snippet",
+              "improved_code": "improved code snippet",
+              "explanation": "why this improvement is better"
+            }
+          ],
+          "suggestions": [
+            {
+              "type": "architecture|design_pattern|best_practice",
+              "description": "suggestion description",
+              "implementation": "how to implement"
+            }
+          ],
+          "overall_quality": "assessment of overall code quality"
+        }`,
       model: 'claude-3-opus',
-      temperature: 0.3
+      temperature: 0.3,
+      maxTokens: 3000
     });
 
-    // Prompt Evolution Agent
-    this.agents.set('prompt-evolver', {
-      systemPrompt: `You are a prompt optimization expert. Analyze prompt performance and 
-                    suggest improvements to increase effectiveness.`,
-      model: 'openai-gpt4-turbo',
-      temperature: 0.4
+    // Architecture Analysis Agent
+    this.agents.set('architecture-analyzer', {
+      name: 'Architecture Analyzer',
+      description: 'Analyzes code architecture, design patterns, and system structure',
+      systemPrompt: `You are an architecture expert. Analyze the code for:
+        1. Design patterns and architectural decisions
+        2. Code organization and modularity
+        3. Scalability and maintainability issues
+        4. Technology stack appropriateness
+        5. Integration patterns and dependencies
+        
+        Return your analysis in this JSON format:
+        {
+          "architecture": {
+            "patterns": ["patterns identified"],
+            "strengths": ["architectural strengths"],
+            "weaknesses": ["architectural issues"],
+            "recommendations": ["improvement suggestions"]
+          },
+          "modularity": {
+            "score": 0-100,
+            "issues": ["modularity problems"],
+            "suggestions": ["modularity improvements"]
+          },
+          "scalability": {
+            "score": 0-100,
+            "concerns": ["scalability issues"],
+            "strategies": ["scaling strategies"]
+          }
+        }`,
+      model: 'claude-3-opus',
+      temperature: 0.2,
+      maxTokens: 2500
+    });
+
+    // Documentation Agent
+    this.agents.set('documentation-agent', {
+      name: 'Documentation Agent',
+      description: 'Generates documentation, comments, and code explanations',
+      systemPrompt: `You are a documentation expert. Analyze the code and provide:
+        1. Function and class documentation
+        2. Inline comments for complex logic
+        3. README and API documentation
+        4. Code examples and usage patterns
+        
+        Return your response in this JSON format:
+        {
+          "documentation": {
+            "functions": [
+              {
+                "name": "function name",
+                "description": "what it does",
+                "parameters": ["param descriptions"],
+                "returns": "return value description",
+                "examples": ["usage examples"]
+              }
+            ],
+            "classes": [
+              {
+                "name": "class name",
+                "description": "purpose and responsibility",
+                "methods": ["method documentation"],
+                "properties": ["property documentation"]
+              }
+            ]
+          },
+          "comments": [
+            {
+              "location": "line/function",
+              "comment": "suggested comment",
+              "type": "explanation|warning|todo"
+            }
+          ],
+          "readme_sections": [
+            {
+              "section": "section name",
+              "content": "section content"
+            }
+          ]
+        }`,
+      model: 'openai-gpt4',
+      temperature: 0.3,
+      maxTokens: 3000
     });
   }
 
-  async runAgent(agentId, input) {
+  initializeWorkflows() {
+    // Code Review Workflow
+    this.workflows.set('code-review', {
+      name: 'Code Review',
+      description: 'Comprehensive code analysis and improvement',
+      steps: [
+        { agent: 'syntax-analyzer', name: 'Syntax Analysis' },
+        { agent: 'security-analyzer', name: 'Security Analysis' },
+        { agent: 'performance-analyzer', name: 'Performance Analysis' },
+        { agent: 'architecture-analyzer', name: 'Architecture Analysis' },
+        { agent: 'code-improver', name: 'Code Improvement' }
+      ],
+      parallel: false
+    });
+
+    // Quick Analysis Workflow
+    this.workflows.set('quick-analysis', {
+      name: 'Quick Analysis',
+      description: 'Fast code quality assessment',
+      steps: [
+        { agent: 'syntax-analyzer', name: 'Syntax Check' },
+        { agent: 'security-analyzer', name: 'Security Check' }
+      ],
+      parallel: true
+    });
+
+    // Documentation Workflow
+    this.workflows.set('documentation', {
+      name: 'Documentation',
+      description: 'Generate comprehensive documentation',
+      steps: [
+        { agent: 'architecture-analyzer', name: 'Architecture Analysis' },
+        { agent: 'documentation-agent', name: 'Documentation Generation' }
+      ],
+      parallel: false
+    });
+
+    // Performance Optimization Workflow
+    this.workflows.set('performance-optimization', {
+      name: 'Performance Optimization',
+      description: 'Identify and fix performance issues',
+      steps: [
+        { agent: 'performance-analyzer', name: 'Performance Analysis' },
+        { agent: 'code-improver', name: 'Optimization Implementation' }
+      ],
+      parallel: false
+    });
+  }
+
+  async runAgent(agentId, input, options = {}) {
     const agent = this.agents.get(agentId);
     if (!agent) {
       throw new Error(`Agent ${agentId} not found`);
     }
 
-    // This would integrate with the main AI service
-    // For now, return mock results
-    return {
-      agent: agentId,
-      result: `Mock result from ${agentId}`,
-      confidence: 0.8,
-      timestamp: new Date()
-    };
+    const executionId = this.generateExecutionId();
+    const startTime = Date.now();
+
+    try {
+      // Log execution start
+      this.logExecution(executionId, agentId, 'started', { input: input.substring(0, 200) });
+
+      // Prepare the prompt with context
+      const prompt = this.buildAgentPrompt(agent, input, options);
+      
+      // Execute the agent using the main AI service
+      const response = await this.executeAgentWithAI(agent, prompt, options);
+      
+      const executionTime = Date.now() - startTime;
+      
+      // Parse and validate response
+      const result = this.parseAgentResponse(response, agentId);
+      
+      // Log successful execution
+      this.logExecution(executionId, agentId, 'completed', {
+        executionTime,
+        result: result.summary || 'Analysis completed'
+      });
+
+      return {
+        executionId,
+        agent: agentId,
+        agentName: agent.name,
+        result,
+        confidence: result.score ? result.score / 100 : 0.8,
+        timestamp: new Date(),
+        executionTime
+      };
+
+    } catch (error) {
+      const executionTime = Date.now() - startTime;
+      
+      // Log error
+      this.logExecution(executionId, agentId, 'error', {
+        error: error.message,
+        executionTime
+      });
+
+      throw new Error(`Agent ${agentId} execution failed: ${error.message}`);
+    }
   }
 
-  combineAnalysisResults(results) {
-    return {
-      combined: true,
-      results,
-      summary: this.generateSummary(results),
-      priority: this.prioritizeIssues(results)
+  async runWorkflow(workflowId, input, options = {}) {
+    const workflow = this.workflows.get(workflowId);
+    if (!workflow) {
+      throw new Error(`Workflow ${workflowId} not found`);
+    }
+
+    const workflowExecutionId = this.generateExecutionId();
+    const startTime = Date.now();
+    const results = [];
+    const errors = [];
+
+    try {
+      this.logExecution(workflowExecutionId, workflowId, 'started', {
+        workflow: workflow.name,
+        steps: workflow.steps.length
+      });
+
+      if (workflow.parallel) {
+        // Execute agents in parallel
+        const promises = workflow.steps.map(async (step) => {
+          try {
+            return await this.runAgent(step.agent, input, options);
+          } catch (error) {
+            errors.push({ step: step.name, error: error.message });
+            return null;
+          }
+        });
+
+        const stepResults = await Promise.all(promises);
+        results.push(...stepResults.filter(r => r !== null));
+
+      } else {
+        // Execute agents sequentially
+        for (const step of workflow.steps) {
+          try {
+            const result = await this.runAgent(step.agent, input, options);
+            results.push(result);
+          } catch (error) {
+            errors.push({ step: step.name, error: error.message });
+            // Continue with next step unless critical
+            if (step.agent === 'syntax-analyzer') {
+              throw error; // Stop workflow if syntax analysis fails
+            }
+          }
+        }
+      }
+
+      const workflowExecutionTime = Date.now() - startTime;
+      
+      // Combine results
+      const combinedResult = this.combineWorkflowResults(results, workflow);
+      
+      this.logExecution(workflowExecutionId, workflowId, 'completed', {
+        executionTime: workflowExecutionTime,
+        successfulSteps: results.length,
+        failedSteps: errors.length
+      });
+
+      return {
+        executionId: workflowExecutionId,
+        workflow: workflowId,
+        workflowName: workflow.name,
+        results,
+        combined: combinedResult,
+        errors,
+        timestamp: new Date(),
+        executionTime: workflowExecutionTime
+      };
+
+    } catch (error) {
+      const workflowExecutionTime = Date.now() - startTime;
+      
+      this.logExecution(workflowExecutionId, workflowId, 'error', {
+        error: error.message,
+        executionTime: workflowExecutionTime
+      });
+
+      throw new Error(`Workflow ${workflowId} execution failed: ${error.message}`);
+    }
+  }
+
+  async executeAgentWithAI(agent, prompt, options) {
+    // Use the main AI service to execute the agent
+    const messages = [
+      { role: 'system', content: agent.systemPrompt },
+      { role: 'user', content: prompt }
+    ];
+
+    const aiOptions = {
+      model: agent.model,
+      temperature: agent.temperature,
+      maxTokens: agent.maxTokens,
+      ...options
     };
+
+    return await this.generateResponse(prompt, aiOptions);
+  }
+
+  buildAgentPrompt(agent, input, options) {
+    const context = options.context || '';
+    const language = options.language || 'unknown';
+    
+    return `Analyze the following ${language} code:
+
+${input}
+
+${context ? `Additional context:\n${context}\n` : ''}
+
+Please provide a thorough analysis following the specified format.`;
+  }
+
+  parseAgentResponse(response, agentId) {
+    try {
+      // Try to parse JSON response
+      const content = response.response || response.content || response;
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+      
+      // Fallback to text parsing
+      return {
+        summary: content,
+        score: 75, // Default score
+        raw: content
+      };
+    } catch (error) {
+      return {
+        summary: response.response || response.content || 'Analysis completed',
+        score: 75,
+        raw: response.response || response.content || response,
+        parseError: error.message
+      };
+    }
+  }
+
+  combineWorkflowResults(results, workflow) {
+    const combined = {
+      workflow: workflow.name,
+      totalSteps: workflow.steps.length,
+      completedSteps: results.length,
+      summary: this.generateWorkflowSummary(results),
+      recommendations: this.extractRecommendations(results),
+      priority: this.prioritizeWorkflowIssues(results)
+    };
+
+    // Calculate overall score
+    const scores = results.map(r => r.result.score).filter(s => s !== undefined);
+    if (scores.length > 0) {
+      combined.overallScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+    }
+
+    return combined;
+  }
+
+  generateWorkflowSummary(results) {
+    const summaries = results.map(r => `${r.agentName}: ${r.result.summary || 'Analysis completed'}`);
+    return summaries.join('\n\n');
+  }
+
+  extractRecommendations(results) {
+    const recommendations = [];
+    
+    results.forEach(result => {
+      if (result.result.recommendations) {
+        recommendations.push(...result.result.recommendations);
+      }
+      if (result.result.suggestions) {
+        recommendations.push(...result.result.suggestions);
+      }
+    });
+
+    return recommendations;
+  }
+
+  prioritizeWorkflowIssues(results) {
+    const allIssues = [];
+    
+    results.forEach(result => {
+      if (result.result.issues) {
+        allIssues.push(...result.result.issues);
+      }
+      if (result.result.vulnerabilities) {
+        allIssues.push(...result.result.vulnerabilities);
+      }
+      if (result.result.bottlenecks) {
+        allIssues.push(...result.result.bottlenecks);
+      }
+    });
+
+    return allIssues.sort((a, b) => {
+      const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+      return (severityOrder[b.severity] || 0) - (severityOrder[a.severity] || 0);
+    });
+  }
+
+  generateExecutionId() {
+    return `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  logExecution(executionId, agentId, status, data) {
+    const logEntry = {
+      executionId,
+      agentId,
+      status,
+      timestamp: new Date(),
+      ...data
+    };
+
+    if (!this.executionHistory.has(executionId)) {
+      this.executionHistory.set(executionId, []);
+    }
+    
+    this.executionHistory.get(executionId).push(logEntry);
+    
+    // Keep only last 1000 entries per execution
+    if (this.executionHistory.get(executionId).length > 1000) {
+      this.executionHistory.get(executionId).shift();
+    }
+  }
+
+  getExecutionHistory(executionId) {
+    return this.executionHistory.get(executionId) || [];
+  }
+
+  getAvailableAgents() {
+    return Array.from(this.agents.entries()).map(([id, agent]) => ({
+      id,
+      name: agent.name,
+      description: agent.description
+    }));
+  }
+
+  getAvailableWorkflows() {
+    return Array.from(this.workflows.entries()).map(([id, workflow]) => ({
+      id,
+      name: workflow.name,
+      description: workflow.description,
+      steps: workflow.steps
+    }));
+  }
+
+  // Legacy method for backward compatibility
+  combineAnalysisResults(results) {
+    return this.combineWorkflowResults(results, { name: 'Legacy Analysis' });
   }
 
   generateSummary(results) {
-    return `Analysis complete. Found ${results.length} categories of issues.`;
+    return this.generateWorkflowSummary(results);
   }
 
   prioritizeIssues(results) {
-    // Prioritize issues by severity and type
-    return results.sort((a, b) => b.confidence - a.confidence);
+    return this.prioritizeWorkflowIssues(results);
   }
 }
 
